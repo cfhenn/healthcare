@@ -13,7 +13,7 @@ local indicator_descriptions
 *data originally from https://www.medicaid.gov/medicaid/quality-of-care/performance-measurement/adult-and-child-health-care-quality-measures/childrens-health-care-quality-measures/index.html#AnnualReporting
 foreach year of local years_with_data{
 	
-	import delimited "https://github.com/cfhenn/healthcare/raw/master/Data/child_healthcare_data/`year'_Child_Health_Care_Quality_Measures.csv", clear
+	import delimited "https://github.com/cfhenn/healthcare/raw/master/Data/`year'_Child_Health_Care_Quality_Measures.csv", clear
 	
 	keep if (measureabbreviation == "LBW-CH" & population == "Medicaid only")
 			
@@ -43,18 +43,18 @@ save medicaid_outcome_merged.dta, replace
 
 *next, merge in data for control variables
 *race and income have been shown to be correlated with live birth weight
-use "https://github.com/cfhenn/healthcare/blob/master/Data/pums_smallfile.dta?raw=true", clear
-keep if hinscaid == 2 // only keep people on medicaid
-gen pct_white = (race == 1)*perwt
-gen pct_black = (race == 2)*perwt
-gen pct_asian = (race >= 4 & race >= 6)*perwt
-gen pct_othrc = (race == 3 | race >  6)*perwt
+import delimited "https://github.com/cfhenn/healthcare/blob/master/Data/pums_smallfile.csv?raw=true", clear
+keep if hinscaid == "Has insurance through Medicaid"  // only keep people on medicaid
+recode inctot (9999999=.)
+gen pct_white = (race == "White")*perwt
+gen pct_black = (race == "Black/African American/Negro")*perwt
+gen pct_asian = (race == "Other Asian or Pacific Islander" | race == "Chinese" | race == "Japanese")*perwt
 replace inctot = inctot*perwt
-decode statefip, gen(state)
+rename statefip state
 
-collapse (sum) pct_white pct_black pct_asian pct_othrc inctot perwt, by(state year)
+collapse (sum) pct_white pct_black pct_asian inctot perwt, by(state year)
 
-local control_vars pct_white pct_black pct_asian pct_othrc inctot
+local control_vars pct_white pct_black pct_asian inctot
 foreach cv of local control_vars{
 	replace `cv' = `cv'/perwt
 }

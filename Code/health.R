@@ -32,25 +32,30 @@ remove(expansion_df)
 ######################################
 # NEW
 ######################################
-link="https://github.com/cfhenn/healthcare/raw/master/Data/medicaid_expansion.csv"
+link="https://github.com/cfhenn/healthcare/blob/master/Data/pums_smallfile.csv?raw=true"
 pums_df <- as.data.frame(read.csv(file = url(link)))
-pums_df <- pums_df[(pums_df$hincaid == 2)]
-keep if hinscaid == 2 // only keep people on medicaid
-gen pct_white = (race == 1)*perwt
-gen pct_black = (race == 2)*perwt
-gen pct_asian = (race >= 4 & race >= 6)*perwt
-gen pct_othrc = (race == 3 | race >  6)*perwt
-replace inctot = inctot*perwt
-decode statefip, gen(state)
+pums_df <- pums_df[(pums_df$hinscaid == "Has insurance through Medicaid"),]
+pums_df$pct_white <- (pums_df$race == "White")*pums_df$perwt
+pums_df$pct_black <- (pums_df$race == "Black/African American/Negro")*pums_df$perwt
+pums_df$pct_asian <- (pums_df$race == "Other Asian or Pacific Islander" | pums_df$race == "Chinese" | pums_df$race == "Japanese" )*pums_df$perwt
 
-collapse (sum) pct_white pct_black pct_asian pct_othrc inctot perwt, by(state year)
+pums_df$inctot[(pums_df$inctot == 9999999)] <- NA
+pums_df$inctot <- pums_df$inctot*pums_df$perwt
 
-local control_vars pct_white pct_black pct_asian pct_othrc inctot
-foreach cv of local control_vars{
-  replace `cv' = `cv'/perwt
+names(pums_df)[names(pums_df) == "statefip"] <- "state"
+
+pums_df$year <- toString(pums_df$year)
+pums_df$stateyear <- paste0(pums_df$state, pums_df$year)
+pums_df <- aggregate(cbind(pct_white, pct_black, pct_asian, inctot, perwt) ~ cbind(stateyear), pums_df, sum)
+
+controlvars_list <- c(pums_df$pct_white, pums_df$pct_black, pums_df$pct_asian, pums_df$pct_othrc, pums_df$inctot)
+for (i in 1:length(controlvars_list)){
+  curr_col <- paste0("pums_df$", controlvars_list[i])
+  assign(curr_col, curr_col/pums_df$perwt)
+  
 }
 
-merge 1:1 state year using medicaid_outcome_merged.dta, keep(3) nogen
+lbw_df <- merge(lbw_df, pums_df, by = "state")
 
 ######################################
 
